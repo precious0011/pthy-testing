@@ -1,1 +1,1 @@
-# pthy-testing
+I think we need to make it in protype and diffferent versions so how many versions do we need and also we need a better design so i suggest you go online and look for code snippets for complex versions and i referece the source then the simple or easy ones you code it humanly to avoid being flagged during marking
