@@ -1,17 +1,35 @@
-Nice — adding tracking details + special offers is exactly what makes your Version 5 feel like a real system. I’ll give you:
+import tkinter as tk
+from tkinter import messagebox
+import sqlite3
+import random
 
-1. ✅ Database updates
-2. ✅ Tracking system (customer + producer)
-3. ✅ Special offers system
-4. ✅ Code you can plug straight in
-5. ✅ What to write in coursework
+# ---------------- DATABASE ----------------
+conn = sqlite3.connect("glh_v5.db")
+cursor = conn.cursor()
 
-⸻
+# USERS
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT,
+    email TEXT,
+    password TEXT,
+    address TEXT,
+    county TEXT
+)
+""")
 
-🧾 ✅ 1. DATABASE UPDATES (VERY IMPORTANT)
+# PRODUCTS
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    price REAL,
+    stock INTEGER
+)
+""")
 
-🔴 Update your orders table to include tracking:
-
+# ORDERS (WITH TRACKING)
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -23,10 +41,7 @@ CREATE TABLE IF NOT EXISTS orders (
 )
 """)
 
-⸻
-
-🟢 OPTIONAL: Add offers table
-
+# OFFERS
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS offers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,78 +50,25 @@ CREATE TABLE IF NOT EXISTS offers (
 )
 """)
 
-⸻
-
-🚚 ✅ 2. TRACKING SYSTEM (CUSTOMER SIDE)
-
-🔧 UPDATE CHECKOUT FUNCTION
-
-Replace your checkout with:
-
-import random
-def checkout():
-    if not cart:
-        messagebox.showerror("Error", "Cart empty")
-        return
-    items = ", ".join([i[0] for i in cart])
-    total = sum([i[1] for i in cart])
-    tracking_id = "TRK" + str(random.randint(10000, 99999))
-    cursor.execute("""
-    INSERT INTO orders (user_email, items, total, status, tracking_id)
-    VALUES (?, ?, ?, ?, ?)
-    """, (user_email, items, total, "Processing", tracking_id))
+# INSERT PRODUCTS
+cursor.execute("SELECT COUNT(*) FROM products")
+if cursor.fetchone()[0] == 0:
+    cursor.executemany("""
+    INSERT INTO products (name, price, stock)
+    VALUES (?, ?, ?)
+    """, [
+        ("Milk", 1.50, 10),
+        ("Bread", 1.20, 15),
+        ("Eggs", 2.50, 20),
+        ("Vegetables", 3.00, 12),
+        ("Apple", 1.00, 25),
+        ("Cheese", 2.80, 8),
+        ("Juice", 1.90, 18),
+        ("Chicken", 4.50, 6)
+    ])
     conn.commit()
-    cart.clear()
-    messagebox.showinfo("Success", f"Order placed\nTracking ID: {tracking_id}")
 
-⸻
-
-👀 VIEW ORDERS WITH TRACKING
-
-Update your view_orders():
-
-cursor.execute("""
-SELECT items, total, status, tracking_id 
-FROM orders WHERE user_email=?
-""", (user_email,))
-for o in cursor.fetchall():
-    tk.Label(win, text=f"{o[0]} | £{o[1]}").pack()
-    tk.Label(win, text=f"Status: {o[2]} | Tracking: {o[3]}").pack()
-
-⸻
-
-🧑‍💼 ✅ 3. PRODUCER: UPDATE ORDER STATUS
-
-Add this inside producer dashboard:
-
-def update_order_status():
-    win = tk.Toplevel(dash)
-    tk.Label(win, text="Tracking ID").pack()
-    tracking = tk.Entry(win)
-    tracking.pack()
-    tk.Label(win, text="New Status").pack()
-    status = tk.Entry(win)
-    status.pack()
-    def update():
-        cursor.execute("""
-        UPDATE orders SET status=? WHERE tracking_id=?
-        """, (status.get(), tracking.get()))
-        conn.commit()
-        messagebox.showinfo("Success", "Order updated")
-    tk.Button(win, text="Update Status", command=update).pack()
-
-👉 Add button:
-
-tk.Button(dash, text="Update Order Status", command=update_order_status).pack(pady=10)
-
-⸻
-
-💸 ✅ 4. SPECIAL OFFERS SYSTEM
-
-⸻
-
-🔧 ADD SAMPLE OFFERS
-
+# INSERT OFFERS
 cursor.execute("SELECT COUNT(*) FROM offers")
 if cursor.fetchone()[0] == 0:
     cursor.executemany("""
@@ -119,114 +81,218 @@ if cursor.fetchone()[0] == 0:
     ])
     conn.commit()
 
-⸻
+# ---------------- MAIN WINDOW ----------------
+root = tk.Tk()
+root.title("Greenfield Local Hub V5")
+root.geometry("750x550")
 
-🛒 APPLY DISCOUNTS WHEN SHOWING PRODUCTS
+# ---------------- LOGIN ----------------
+def open_login():
+    win = tk.Toplevel(root)
+    win.title("Login")
+    win.geometry("300x300")
 
-Modify product loading:
+    tk.Label(win, text="Email").pack()
+    email = tk.Entry(win)
+    email.pack()
 
-cursor.execute("SELECT name, price FROM products")
-products = cursor.fetchall()
-def get_discount(name):
-    cursor.execute("SELECT discount FROM offers WHERE product_name=?", (name,))
-    result = cursor.fetchone()
-    return result[0] if result else 0
+    tk.Label(win, text="Password").pack()
+    password = tk.Entry(win, show="*")
+    password.pack()
 
-⸻
+    def login():
+        cursor.execute("SELECT * FROM users WHERE email=? AND password=?",
+                       (email.get().lower(), password.get()))
+        user = cursor.fetchone()
 
-🖥️ DISPLAY WITH OFFERS
+        if user:
+            win.destroy()
+            open_customer_dashboard(user)
+        else:
+            messagebox.showerror("Error", "Invalid login")
 
-for p in products:
-    discount = get_discount(p[0])
-    final_price = p[1] - discount
-    tk.Label(box, text=p[0]).pack()
-    if discount > 0:
-        tk.Label(box, text=f"£{p[1]}", fg="grey").pack()
-        tk.Label(box, text=f"£{final_price} (Offer!)", fg="red").pack()
-    else:
-        tk.Label(box, text=f"£{p[1]}", fg="green").pack()
+    tk.Button(win, text="Login", command=login).pack(pady=10)
+    tk.Button(win, text="Register",
+              command=lambda: open_register(win)).pack()
 
-⸻
+# ---------------- REGISTER ----------------
+def open_register(prev):
+    prev.destroy()
+    win = tk.Toplevel(root)
 
+    fields = {}
+    for label in ["Username", "Email", "Password", "Address", "County"]:
+        tk.Label(win, text=label).pack()
+        entry = tk.Entry(win, show="*" if label=="Password" else None)
+        entry.pack()
+        fields[label] = entry
 
+    def register():
+        data = {k: v.get() for k, v in fields.items()}
+        cursor.execute("""
+        INSERT INTO users (username, email, password, address, county)
+        VALUES (?, ?, ?, ?, ?)
+        """, (data["Username"], data["Email"], data["Password"],
+              data["Address"], data["County"]))
+        conn.commit()
+        win.destroy()
 
+    tk.Button(win, text="Register", command=register).pack()
 
-Good — adding references is what separates a pass from a distinction.
-I’ll give you proper academic-style references you can use in your coursework.
+# ---------------- CUSTOMER DASHBOARD ----------------
+def open_customer_dashboard(user):
+    dash = tk.Toplevel(root)
+    dash.geometry("1000x700")
 
-⸻
+    user_email = user[2]
+    cart = []
 
-📚 ✅ REFERENCES FOR YOUR PROJECT
+    header = tk.Frame(dash, bg="#2e7d32")
+    header.pack(fill="x")
 
-🧠 Programming & GUI (Tkinter)
+    tk.Label(header, text="GLH Store", fg="white",
+             bg="#2e7d32").pack(side="left")
 
-* Python Documentation. (2025). Tkinter GUI Programming.
-    Available at: https://docs.python.org/3/library/tkinter.html
-* W3Schools. (2025). Python GUI Tkinter Tutorial.
-    Available at: https://www.w3schools.com/python/python_gui.asp
+    # SEARCH
+    search = tk.Entry(header)
+    search.pack(side="left")
 
-⸻
+    def get_discount(name):
+        cursor.execute("SELECT discount FROM offers WHERE product_name=?", (name,))
+        r = cursor.fetchone()
+        return r[0] if r else 0
 
-🗄️ Database (SQLite)
+    main = tk.Frame(dash)
+    main.pack()
 
-* SQLite Documentation. (2025). SQLite Home Page.
-    Available at: https://www.sqlite.org/index.html
-* Python Documentation. (2025). sqlite3 Module.
-    Available at: https://docs.python.org/3/library/sqlite3.html
+    def display(products):
+        for w in main.winfo_children():
+            w.destroy()
 
-⸻
+        for p in products:
+            box = tk.Frame(main, bd=1)
+            box.pack(pady=5)
 
-🧩 UI / UX Design Principles
+            discount = get_discount(p[0])
+            price = p[1] - discount
 
-* Interaction Design Foundation. (2024). User Interface Design Basics.
-    Available at: https://www.interaction-design.org
-* Nielsen Norman Group. (2024). Usability Heuristics for User Interface Design.
-    Available at: https://www.nngroup.com/articles/ten-usability-heuristics/
+            tk.Label(box, text=p[0]).pack()
 
-⸻
+            if discount > 0:
+                tk.Label(box, text=f"£{p[1]}", fg="grey").pack()
+                tk.Label(box, text=f"£{price} OFFER!", fg="red").pack()
+            else:
+                tk.Label(box, text=f"£{p[1]}").pack()
 
-🛒 E-commerce Features (Tracking & Offers)
+            tk.Button(box, text="Add",
+                      command=lambda n=p[0], pr=price: cart.append((n, pr))).pack()
 
-* Amazon. (2025). Order Tracking System.
-    Used as real-world reference for tracking IDs and order status.
-* Tesco. (2025). Online Grocery Offers System.
-    Used as inspiration for discount and offer features.
+    def search_products():
+        cursor.execute("SELECT name, price FROM products WHERE name LIKE ?",
+                       ('%' + search.get() + '%',))
+        display(cursor.fetchall())
 
-⸻
+    tk.Button(header, text="Search", command=search_products).pack(side="left")
 
-🔐 Security & Validation (Optional but Strong)
+    # CART
+    def checkout():
+        if not cart:
+            return
 
-* OWASP. (2024). Input Validation Guidelines.
-    Available at: https://owasp.org
+        items = ", ".join([i[0] for i in cart])
+        total = sum([i[1] for i in cart])
+        tracking = "TRK" + str(random.randint(10000, 99999))
 
-⸻
+        cursor.execute("""
+        INSERT INTO orders (user_email, items, total, status, tracking_id)
+        VALUES (?, ?, ?, ?, ?)
+        """, (user_email, items, total, "Processing", tracking))
 
-📝 HOW TO WRITE THEM (FOR YOUR COURSEWORK)
+        conn.commit()
+        cart.clear()
+        messagebox.showinfo("Order", f"Tracking ID: {tracking}")
 
-If your teacher wants Harvard style, you can write like this:
+    tk.Button(header, text="Checkout", command=checkout).pack(side="right")
 
-Python Software Foundation (2025) Tkinter Documentation. Available at: https://docs.python.org (Accessed: 20 April 2026).
+    # VIEW ORDERS
+    def view_orders():
+        win = tk.Toplevel(dash)
+        cursor.execute("""
+        SELECT items, total, status, tracking_id
+        FROM orders WHERE user_email=?
+        """, (user_email,))
+        for o in cursor.fetchall():
+            tk.Label(win, text=f"{o[0]} | £{o[1]}").pack()
+            tk.Label(win, text=f"{o[2]} | {o[3]}").pack()
 
-⸻
+    tk.Button(header, text="Orders", command=view_orders).pack(side="right")
 
-🎯 💡 WHERE TO PUT REFERENCES
+    cursor.execute("SELECT name, price FROM products")
+    display(cursor.fetchall())
 
-* Task 1 → Design & research
-* Task 2 → Development justification
-* End of document → Full reference list
+# ---------------- PRODUCER DASHBOARD ----------------
+def open_producer_dashboard():
+    dash = tk.Toplevel(root)
+    dash.geometry("1000x600")
 
-⸻
+    sidebar = tk.Frame(dash, bg="#1e1e2f", width=200)
+    sidebar.pack(side="left", fill="y")
 
-🚀 EXTRA (FOR HIGHER MARKS)
+    content = tk.Frame(dash)
+    content.pack(side="right", expand=True, fill="both")
 
-You can also write:
+    def clear():
+        for w in content.winfo_children():
+            w.destroy()
 
-The system design was influenced by real-world platforms such as Amazon and Tesco, particularly in features like order tracking and promotional offers.
+    def products():
+        clear()
+        cursor.execute("SELECT name, price, stock FROM products")
+        for p in cursor.fetchall():
+            tk.Label(content, text=f"{p[0]} £{p[1]} Stock:{p[2]}").pack()
 
-⸻
+    def update_stock():
+        clear()
+        name = tk.Entry(content)
+        name.pack()
+        stock = tk.Entry(content)
+        stock.pack()
 
-If you want, I can:
-👉 ￼ Format all your references into a perfect Harvard reference page
-👉 Or ￼ insert them into your PowerPoint automatically
+        def update():
+            cursor.execute("UPDATE products SET stock=? WHERE name=?",
+                           (stock.get(), name.get()))
+            conn.commit()
 
-Just tell me 👍
+        tk.Button(content, text="Update", command=update).pack()
+
+    def orders():
+        clear()
+        cursor.execute("SELECT user_email, items, total, status, tracking_id FROM orders")
+        for o in cursor.fetchall():
+            tk.Label(content, text=f"{o[0]} | {o[1]} | £{o[2]}").pack()
+            tk.Label(content, text=f"{o[3]} | {o[4]}").pack()
+
+    def update_status():
+        win = tk.Toplevel(dash)
+        t = tk.Entry(win)
+        t.pack()
+        s = tk.Entry(win)
+        s.pack()
+
+        def upd():
+            cursor.execute("UPDATE orders SET status=? WHERE tracking_id=?",
+                           (s.get(), t.get()))
+            conn.commit()
+
+        tk.Button(win, text="Update", command=upd).pack()
+
+    tk.Button(sidebar, text="Products", command=products).pack(pady=10)
+    tk.Button(sidebar, text="Stock", command=update_stock).pack(pady=10)
+    tk.Button(sidebar, text="Orders", command=orders).pack(pady=10)
+    tk.Button(sidebar, text="Update Status", command=update_status).pack(pady=10)
+
+# ---------------- BUTTONS ----------------
+tk.Button(root, text="Customer", command=open_login).pack(pady=20)
+tk.Button(root, text="Producer", command=open_producer_dashboard).pack()
+
+root.mainloop()
